@@ -173,7 +173,7 @@ export default function Planner() {
   }
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-6 animate-page-enter">
       <h1 className="text-xl font-semibold text-white">Weekly Planner</h1>
       <WeekSelector
         actualStartDate={actualStartDate}

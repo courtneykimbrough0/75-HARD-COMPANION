@@ -13,21 +13,23 @@ const NAV_ITEMS = [
 export function BottomNav() {
   return (
     <nav
-      className="fixed inset-x-0 bottom-0 z-40 border-t border-gray-800 bg-gray-950/95 backdrop-blur"
-      style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
+      className="absolute inset-x-4 z-40 rounded-2xl border border-white/10 bg-gray-950/75 backdrop-blur-md shadow-[0_8px_32px_0_rgba(0,0,0,0.5)]"
+      style={{ bottom: 'calc(0.75rem + env(safe-area-inset-bottom, 0px))' }}
     >
-      <ul className="mx-auto flex max-w-lg justify-between px-1">
+      <ul className="flex justify-between px-1.5 py-1.5">
         {NAV_ITEMS.map(({ to, label, icon: Icon }) => (
           <li key={to} className="flex-1">
             <NavLink
               to={to}
               className={({ isActive }) =>
-                `flex flex-col items-center gap-1 py-2 text-xs ${
-                  isActive ? 'text-purple-400' : 'text-gray-500'
+                `flex flex-col items-center gap-1.5 py-1 text-[10px] font-semibold transition-all duration-300 cursor-pointer ${
+                  isActive
+                    ? 'text-purple-400 scale-105 drop-shadow-[0_0_8px_rgba(168,85,247,0.4)]'
+                    : 'text-gray-500 hover:text-gray-300'
                 }`
               }
             >
-              <Icon size={20} />
+              <Icon size={18} />
               <span>{label}</span>
             </NavLink>
           </li>

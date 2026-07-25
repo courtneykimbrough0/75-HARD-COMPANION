@@ -11,7 +11,7 @@ export default function Water() {
   const volumeOz = water?.volumeOz ?? 0
 
   return (
-    <div className="flex flex-col gap-8">
+    <div className="flex flex-col gap-8 animate-page-enter">
       <h1 className="text-xl font-semibold text-white">Water</h1>
       <WaterProgressRing volumeOz={volumeOz} />
       <IncrementButtonGroup onAdd={(amount) => void addWaterIncrement(today, amount)} />
