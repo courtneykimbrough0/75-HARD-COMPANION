@@ -1,9 +1,11 @@
 import { useEffect } from 'react'
+import { AlertTriangle } from 'lucide-react'
 import { ChecklistItem } from '@/components/dashboard/ChecklistItem'
 import { DayCounter } from '@/components/dashboard/DayCounter'
 import { ResetConfirmationBanner } from '@/components/dashboard/ResetConfirmationBanner'
-import { useAppMeta, useTodayLog, useWorkoutsForDate } from '@/db/hooks'
-import { getOrCreateDailyLog, resetToDayOne, setChecklistFlag } from '@/db/repository'
+import { ProgressBar } from '@/components/ui/ProgressBar'
+import { useAppMeta, useTodayLog, useWorkoutsForDate, useTodayWater } from '@/db/hooks'
+import { getOrCreateDailyLog, resetToDayOne, setChecklistFlag, addWaterIncrement } from '@/db/repository'
 import { todayLocalDateString } from '@/lib/logic/dateUtils'
 import { validateDayWorkouts } from '@/lib/logic/workoutValidators'
 import { isDayFullyCompliant } from '@/lib/logic/dayEvaluation'
@@ -14,6 +16,7 @@ export default function Dashboard() {
   const appMeta = useAppMeta()
   const log = useTodayLog(today)
   const workouts = useWorkoutsForDate(today)
+  const water = useTodayWater(today)
 
   useEffect(() => {
     void getOrCreateDailyLog(today)
@@ -23,9 +26,10 @@ export default function Dashboard() {
     return <p className="text-center text-gray-500 font-medium py-10">Loading…</p>
   }
 
-  const workoutsValid = workouts ? validateDayWorkouts(workouts) : false
+  const workoutsValid = (workouts ? validateDayWorkouts(workouts) : false) || !!log.workoutsSpacingOverridden
   const bothWorkoutsLogged = log.workout1Complete && log.workout2Complete
   const completedToday = isDayFullyCompliant(log, workoutsValid)
+  const waterVolume = water?.volumeOz ?? 0
 
   return (
     <div className="flex flex-col gap-6 animate-page-enter">
@@ -38,15 +42,54 @@ export default function Dashboard() {
         />
       )}
 
+      {bothWorkoutsLogged && !workoutsValid && !log.workoutsSpacingOverridden && (
+        <div className="flex flex-col gap-3 rounded-2xl border border-amber-500/20 bg-amber-500/5 p-4 text-sm text-amber-200">
+          <div className="flex gap-2.5 items-start">
+            <AlertTriangle className="shrink-0 text-amber-500 mt-0.5 animate-pulse" size={16} />
+            <div className="flex-1 flex flex-col gap-2">
+              <span className="font-semibold text-amber-400">3-Hour Spacing Conflict</span>
+              <span>Your workouts are logged close together. Did you complete them 3+ hours apart in reality?</span>
+              <button
+                onClick={() => void setChecklistFlag(today, 'workoutsSpacingOverridden', true)}
+                className="self-start px-3 py-1.5 text-xs font-bold rounded-xl bg-amber-500/10 border border-amber-500/20 hover:bg-amber-500/20 hover:border-amber-500/30 text-amber-200 cursor-pointer transition-all duration-200 active:scale-95"
+              >
+                Yes, Spacing Was Met
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Water Tracker Card */}
+      <div className="rounded-3xl border border-white/5 bg-white/[0.03] p-5 flex flex-col gap-4">
+        <div className="flex items-center justify-between">
+          <span className="text-sm font-semibold text-gray-300">Water Intake</span>
+          <span className="text-sm font-bold text-blue-400">{waterVolume} / 128 oz</span>
+        </div>
+        <div className="w-full">
+          <ProgressBar
+            value={waterVolume}
+            max={128}
+            colorClassName={waterVolume >= 128 ? 'bg-green-500' : 'bg-blue-500'}
+          />
+        </div>
+        <div className="flex gap-2">
+          {[8, 16, 24, 32].map((oz) => (
+            <button
+              key={oz}
+              onClick={() => void addWaterIncrement(today, oz)}
+              className="flex-1 py-1.5 text-xs font-bold rounded-xl bg-white/5 border border-white/5 hover:bg-white/10 hover:border-white/10 text-gray-300 transition-all duration-200 active:scale-95 cursor-pointer"
+            >
+              +{oz} oz
+            </button>
+          ))}
+        </div>
+      </div>
+
       <div className="flex flex-col gap-3">
         <ChecklistItem label="Workout 1 (45 min)" complete={log.workout1Complete} linkTo="/workouts" />
         <ChecklistItem label="Workout 2 (45 min)" complete={log.workout2Complete} linkTo="/workouts" />
-        {bothWorkoutsLogged && !workoutsValid && (
-          <p className="-mt-2 pl-1 text-xs text-amber-400 font-semibold animate-pulse">
-            Both workouts logged, but the 3-hour spacing / outdoor requirement isn't met yet.
-          </p>
-        )}
-        <ChecklistItem label="Water (128 oz)" complete={log.waterTargetComplete} linkTo="/water" />
+        <ChecklistItem label="Water (128 oz)" complete={log.waterTargetComplete} />
         <ChecklistItem
           label="Reading (10 pages)"
           complete={log.readingTargetComplete}

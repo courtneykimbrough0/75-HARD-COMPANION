@@ -11,6 +11,7 @@ export interface DailyLog {
   dietCompliant: boolean
   photoCaptured: boolean
   status: DayStatus
+  workoutsSpacingOverridden?: boolean
   createdAt: number
   updatedAt: number
 }
@@ -22,6 +23,7 @@ export type ChecklistFlag =
   | 'readingTargetComplete'
   | 'dietCompliant'
   | 'photoCaptured'
+  | 'workoutsSpacingOverridden'
 
 export interface WorkoutRecord {
   id?: number

@@ -1,9 +1,13 @@
+import { useState } from 'react'
+import { Plus } from 'lucide-react'
 import { Outlet } from 'react-router-dom'
 import { BottomNav } from '@/components/layout/BottomNav'
+import { QuickLogWizard } from '@/components/ui/QuickLogWizard'
 import { useDayRollover } from '@/db/hooks'
 
 export function AppShell() {
   useDayRollover()
+  const [isWizardOpen, setIsWizardOpen] = useState(false)
 
   return (
     <div className="flex min-h-svh w-full items-center justify-center p-0 sm:p-6 bg-transparent">
@@ -15,6 +19,18 @@ export function AppShell() {
         <main className="relative z-10 flex-1 px-5 pb-28 pt-8 overflow-y-auto">
           <Outlet />
         </main>
+
+        {/* Floating Action Button (FAB) */}
+        <button
+          type="button"
+          aria-label="Quick Log"
+          onClick={() => setIsWizardOpen(true)}
+          className="absolute bottom-20 right-5 z-40 flex h-13 w-13 items-center justify-center rounded-full bg-purple-600 text-white shadow-[0_4px_20px_rgba(168,85,247,0.5)] hover:bg-purple-500 active:scale-90 transition-all cursor-pointer border border-purple-400/30"
+        >
+          <Plus size={24} />
+        </button>
+
+        <QuickLogWizard isOpen={isWizardOpen} onClose={() => setIsWizardOpen(false)} />
         <BottomNav />
       </div>
     </div>

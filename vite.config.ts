@@ -13,6 +13,9 @@ export default defineConfig({
       registerType: 'autoUpdate',
       devOptions: { enabled: true },
       includeAssets: ['favicon.png', 'icons/apple-touch-icon.png'],
+      workbox: {
+        globPatterns: ['**/*.{js,css,html,woff2,png,svg}'],
+      },
       manifest: {
         name: '75 Hard Companion',
         short_name: '75 Hard',
@@ -21,8 +24,8 @@ export default defineConfig({
         display: 'standalone',
         start_url: '/',
         scope: '/',
-        theme_color: '#111827',
-        background_color: '#111827',
+        theme_color: '#030712',
+        background_color: '#030712',
         icons: [
           {
             src: 'icons/icon-192.png',
