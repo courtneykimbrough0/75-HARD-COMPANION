@@ -76,6 +76,19 @@ export async function getWorkoutsForDate(date: DateString): Promise<WorkoutRecor
   return db.workoutRecords.where('date').equals(date).sortBy('startTime')
 }
 
+export async function syncWorkoutFlags(date: DateString): Promise<void> {
+  const workouts = await getWorkoutsForDate(date)
+  const workout1Complete = workouts.length > 0 && workouts[0].endTime !== null && workouts[0].durationSeconds >= WORKOUT_MIN_MINUTES * 60
+  const workout2Complete = workouts.length > 1 && workouts[1].endTime !== null && workouts[1].durationSeconds >= WORKOUT_MIN_MINUTES * 60
+
+  await getOrCreateDailyLog(date)
+  await db.dailyLogs.update(date, {
+    workout1Complete,
+    workout2Complete,
+    updatedAt: Date.now(),
+  })
+}
+
 export async function startWorkoutSession(
   date: DateString,
   isOutdoor: boolean,
@@ -94,6 +107,7 @@ export async function startWorkoutSession(
     durationSeconds: 0,
   }
   const id = await db.workoutRecords.add(record)
+  await syncWorkoutFlags(date)
   return { ...record, id }
 }
 
@@ -114,11 +128,40 @@ export async function stopWorkoutSession(
   const updated: WorkoutRecord = { ...record, endTime, durationSeconds }
   await db.workoutRecords.put(updated)
 
-  const met = durationSeconds >= WORKOUT_MIN_MINUTES * 60
-  const flag: ChecklistFlag = record.sessionNumber === 1 ? 'workout1Complete' : 'workout2Complete'
-  await setChecklistFlag(record.date, flag, met)
+  await syncWorkoutFlags(record.date)
 
   return updated
+}
+
+export async function deleteWorkoutSession(id: number): Promise<void> {
+  const record = await db.workoutRecords.get(id)
+  if (!record) return
+
+  await db.workoutRecords.delete(id)
+  await syncWorkoutFlags(record.date)
+}
+
+export async function quickCompleteWorkoutSession(
+  date: DateString,
+  isOutdoor: boolean,
+): Promise<WorkoutRecord> {
+  const existing = await getWorkoutsForDate(date)
+  if (existing.length >= 2) {
+    throw new Error('Both workout sessions are already logged for this day')
+  }
+  const sessionNumber = (existing.length + 1) as 1 | 2
+  const now = Date.now()
+  const record: WorkoutRecord = {
+    date,
+    sessionNumber,
+    startTime: now - (WORKOUT_MIN_MINUTES * 60 * 1000),
+    endTime: now,
+    isOutdoor,
+    durationSeconds: WORKOUT_MIN_MINUTES * 60,
+  }
+  const id = await db.workoutRecords.add(record)
+  await syncWorkoutFlags(date)
+  return { ...record, id }
 }
 
 // ---------- Photos ----------

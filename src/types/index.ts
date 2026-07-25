@@ -56,11 +56,20 @@ export interface WorkoutScheduleDay {
   workout2TargetTime: string // "HH:MM"
 }
 
+export interface MealScheduleDay {
+  dayOfWeek: number // 0 (Sun) - 6 (Sat)
+  meal1: string
+  meal2: string
+  meal3: string
+  snacks: string
+}
+
 export interface WeeklyPlan {
   weekStartDate: DateString
   weekEndDate: DateString
   mealPlanText: string
   scheduledWorkouts: WorkoutScheduleDay[]
+  scheduledMeals?: MealScheduleDay[]
   updatedAt: number
 }
 

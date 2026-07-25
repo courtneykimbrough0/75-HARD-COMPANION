@@ -14,12 +14,12 @@ export function Toggle({ checked, onChange, label, disabled }: ToggleProps) {
       aria-label={label}
       disabled={disabled}
       onClick={() => onChange(!checked)}
-      className={`relative h-7 w-12 shrink-0 rounded-full transition-colors disabled:opacity-40 ${
+      className={`relative inline-flex h-7 w-12 shrink-0 cursor-pointer items-center rounded-full transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 focus:ring-offset-gray-900 disabled:opacity-40 ${
         checked ? 'bg-purple-500' : 'bg-gray-700'
       }`}
     >
       <span
-        className={`absolute top-1 h-5 w-5 rounded-full bg-white transition-transform ${
+        className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
           checked ? 'translate-x-6' : 'translate-x-1'
         }`}
       />

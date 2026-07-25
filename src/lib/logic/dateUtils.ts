@@ -50,3 +50,10 @@ export function formatDisplayDate(date: DateString): string {
     day: 'numeric',
   })
 }
+
+export function daysBetween(start: DateString, end: DateString): number {
+  const s = parseLocalDateString(start)
+  const e = parseLocalDateString(end)
+  const diffTime = e.getTime() - s.getTime()
+  return Math.round(diffTime / (1000 * 60 * 60 * 24))
+}

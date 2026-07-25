@@ -12,6 +12,7 @@ interface WorkoutTimerProps {
   onPause: () => void
   onResume: () => void
   onStop: () => void
+  onQuickComplete?: () => void
 }
 
 function formatClock(totalSeconds: number): string {
@@ -27,6 +28,7 @@ export function WorkoutTimer({
   onPause,
   onResume,
   onStop,
+  onQuickComplete,
 }: WorkoutTimerProps) {
   const targetSeconds = WORKOUT_MIN_MINUTES * 60
 
@@ -44,9 +46,16 @@ export function WorkoutTimer({
       </div>
 
       {phase === 'idle' && (
-        <Button onClick={onStart} className="w-full">
-          Start
-        </Button>
+        <div className="flex w-full gap-3">
+          <Button onClick={onStart} className="flex-1">
+            Start Timer
+          </Button>
+          {onQuickComplete && (
+            <Button variant="secondary" onClick={onQuickComplete} className="flex-1">
+              Mark Complete
+            </Button>
+          )}
+        </div>
       )}
       {phase === 'running' && (
         <div className="flex w-full gap-3">

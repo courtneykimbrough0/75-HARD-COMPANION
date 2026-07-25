@@ -1,7 +1,13 @@
 import { useEffect, useRef, useState } from 'react'
+import { Trash2 } from 'lucide-react'
 import { Toggle } from '@/components/ui/Toggle'
 import { WorkoutTimer, type TimerPhase } from '@/components/workouts/WorkoutTimer'
-import { startWorkoutSession, stopWorkoutSession } from '@/db/repository'
+import {
+  startWorkoutSession,
+  stopWorkoutSession,
+  deleteWorkoutSession,
+  quickCompleteWorkoutSession,
+} from '@/db/repository'
 import { WORKOUT_MIN_MINUTES } from '@/lib/logic/constants'
 import type { DateString, WorkoutRecord } from '@/types'
 
@@ -24,6 +30,18 @@ export function WorkoutSessionCard({ date, label, record }: WorkoutSessionCardPr
   const pauseStartedAtRef = useRef<number | null>(null)
 
   useEffect(() => {
+    if (record) {
+      setPhase(record.endTime ? 'stopped' : 'running')
+      activeIdRef.current = record.id
+      startTimeRef.current = record.startTime
+    } else {
+      setPhase('idle')
+      activeIdRef.current = undefined
+      startTimeRef.current = 0
+    }
+  }, [record])
+
+  useEffect(() => {
     if (phase !== 'running') return
     const id = setInterval(() => forceTick((t) => t + 1), 1000)
     return () => clearInterval(id)
@@ -31,13 +49,27 @@ export function WorkoutSessionCard({ date, label, record }: WorkoutSessionCardPr
 
   if (record?.endTime != null) {
     const met = record.durationSeconds >= WORKOUT_MIN_MINUTES * 60
+    const handleDelete = async () => {
+      if (record.id != null) {
+        await deleteWorkoutSession(record.id)
+      }
+    }
     return (
       <div className="rounded-2xl bg-gray-900 p-5">
         <div className="flex items-center justify-between">
           <span className="font-medium text-gray-200">{label}</span>
-          <span className={`text-xs ${met ? 'text-green-400' : 'text-amber-400'}`}>
-            {met ? 'Complete' : 'Under 45 min'}
-          </span>
+          <div className="flex items-center gap-3">
+            <span className={`text-xs ${met ? 'text-green-400' : 'text-amber-400'}`}>
+              {met ? 'Complete' : 'Under 45 min'}
+            </span>
+            <button
+              onClick={() => void handleDelete()}
+              className="text-gray-500 hover:text-red-400 p-1 rounded-lg transition-colors cursor-pointer"
+              title="Delete session"
+            >
+              <Trash2 size={16} />
+            </button>
+          </div>
         </div>
         <p className="mt-2 font-mono text-2xl text-white">
           {Math.floor(record.durationSeconds / 60)}:
@@ -90,6 +122,21 @@ export function WorkoutSessionCard({ date, label, record }: WorkoutSessionCardPr
     setPhase('stopped')
   }
 
+  const handleResetActiveSession = async () => {
+    if (activeIdRef.current != null) {
+      await deleteWorkoutSession(activeIdRef.current)
+    }
+    activeIdRef.current = undefined
+    startTimeRef.current = 0
+    pausedMsRef.current = 0
+    pauseStartedAtRef.current = null
+    setPhase('idle')
+  }
+
+  const handleQuickComplete = async () => {
+    await quickCompleteWorkoutSession(date, isOutdoor)
+  }
+
   return (
     <div className="flex flex-col gap-4 rounded-2xl bg-gray-900 p-5">
       <div className="flex items-center justify-between">
@@ -100,6 +147,15 @@ export function WorkoutSessionCard({ date, label, record }: WorkoutSessionCardPr
             <Toggle checked={isOutdoor} onChange={setIsOutdoor} label="Outdoor workout" />
           </div>
         )}
+        {(phase === 'running' || phase === 'paused') && (
+          <button
+            onClick={() => void handleResetActiveSession()}
+            className="text-gray-500 hover:text-red-400 p-1 rounded-lg transition-colors text-xs flex items-center gap-1 cursor-pointer"
+            title="Cancel session"
+          >
+            <Trash2 size={14} /> Cancel
+          </button>
+        )}
       </div>
       <WorkoutTimer
         phase={phase}
@@ -108,6 +164,7 @@ export function WorkoutSessionCard({ date, label, record }: WorkoutSessionCardPr
         onPause={handlePause}
         onResume={handleResume}
         onStop={() => void handleStop()}
+        onQuickComplete={() => void handleQuickComplete()}
       />
     </div>
   )
