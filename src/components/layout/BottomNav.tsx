@@ -1,10 +1,9 @@
-import { Camera, Calendar, Dumbbell, History, LayoutGrid, Droplet } from 'lucide-react'
+import { Camera, Calendar, Dumbbell, History, LayoutGrid } from 'lucide-react'
 import { NavLink } from 'react-router-dom'
 
 const NAV_ITEMS = [
   { to: '/dashboard', label: 'Today', icon: LayoutGrid },
   { to: '/workouts', label: 'Workouts', icon: Dumbbell },
-  { to: '/water', label: 'Water', icon: Droplet },
   { to: '/photo', label: 'Photo', icon: Camera },
   { to: '/history', label: 'History', icon: History },
   { to: '/planner', label: 'Planner', icon: Calendar },
