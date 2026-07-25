@@ -6,11 +6,17 @@ export function AppShell() {
   useDayRollover()
 
   return (
-    <div className="mx-auto flex min-h-svh max-w-lg flex-col bg-gray-950">
-      <main className="flex-1 px-4 pb-24 pt-6">
-        <Outlet />
-      </main>
-      <BottomNav />
+    <div className="flex min-h-svh w-full items-center justify-center p-0 sm:p-6 bg-transparent">
+      <div className="relative flex h-full min-h-svh sm:min-h-[850px] w-full max-w-md flex-col overflow-hidden border-0 sm:border border-white/10 bg-gray-950/80 backdrop-blur-xl shadow-none sm:shadow-[0_32px_64px_-16px_rgba(0,0,0,0.8)] sm:rounded-[36px]">
+        {/* Ambient Glows */}
+        <div className="absolute -top-40 -left-40 h-80 w-80 rounded-full bg-purple-600/10 blur-[100px] pointer-events-none" />
+        <div className="absolute top-80 -right-40 h-80 w-80 rounded-full bg-blue-600/10 blur-[100px] pointer-events-none" />
+
+        <main className="relative z-10 flex-1 px-5 pb-28 pt-8 overflow-y-auto">
+          <Outlet />
+        </main>
+        <BottomNav />
+      </div>
     </div>
   )
 }

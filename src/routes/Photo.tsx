@@ -19,7 +19,7 @@ export default function Photo() {
   }
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-4 animate-page-enter">
       <h1 className="text-xl font-semibold text-white">Progress Photo</h1>
 
       {existingPhoto && !pendingBlob && (

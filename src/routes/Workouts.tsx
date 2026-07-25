@@ -9,7 +9,7 @@ export default function Workouts() {
   const records = useWorkoutsForDate(today) ?? []
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-4 animate-page-enter">
       <h1 className="text-xl font-semibold text-white">Workouts</h1>
       {records.map((record, i) => (
         <WorkoutSessionCard
