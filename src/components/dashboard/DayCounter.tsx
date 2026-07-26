@@ -1,58 +1,73 @@
 import { TOTAL_PROGRAM_DAYS } from '@/lib/logic/constants'
+import { formatDisplayDate } from '@/lib/logic/dateUtils'
+import type { DateString } from '@/types'
 
 interface DayCounterProps {
   dayNumber: number
+  date: DateString
+  /** Daily rules met so far, for the at-a-glance count. */
+  rulesComplete: number
+  rulesTotal: number
   completed?: boolean
 }
 
-export function DayCounter({ dayNumber, completed = false }: DayCounterProps) {
+/**
+ * Compact header strip: which day it is, today's date, how many rules are done,
+ * and overall program progress. Deliberately short so the checklist below it
+ * stays above the fold.
+ */
+export function DayCounter({
+  dayNumber,
+  date,
+  rulesComplete,
+  rulesTotal,
+  completed = false,
+}: DayCounterProps) {
   const percent = Math.min(100, Math.max(0, (dayNumber / TOTAL_PROGRAM_DAYS) * 100))
 
   return (
     <div
-      className={`relative flex flex-col items-center gap-1 rounded-3xl border transition-all duration-500 overflow-hidden px-6 py-8 ${
+      className={`relative overflow-hidden rounded-2xl border px-4 py-3 transition-all duration-500 ${
         completed
-          ? 'border-green-500/30 bg-gradient-to-b from-green-500/[0.08] to-transparent shadow-[0_12px_40px_rgba(34,197,94,0.15)] scale-[1.02]'
-          : 'border-white/10 bg-gradient-to-b from-white/[0.07] to-transparent shadow-2xl'
+          ? 'border-green-500/30 bg-gradient-to-r from-green-500/[0.08] to-transparent shadow-[0_8px_28px_rgba(34,197,94,0.12)]'
+          : 'border-white/10 bg-gradient-to-r from-white/[0.06] to-transparent'
       }`}
     >
-      {/* Background spotlights */}
-      {completed ? (
-        <>
-          <div className="absolute -right-10 -top-10 h-32 w-32 rounded-full bg-green-500/25 blur-2xl pointer-events-none animate-pulse" />
-          <div className="absolute -left-10 -bottom-10 h-32 w-32 rounded-full bg-emerald-500/15 blur-2xl pointer-events-none animate-pulse" />
-        </>
-      ) : (
-        <div className="absolute -right-10 -top-10 h-32 w-32 rounded-full bg-purple-500/20 blur-2xl pointer-events-none" />
-      )}
-
-      {/* Title */}
-      <span
-        className={`text-xs uppercase tracking-widest font-bold transition-colors duration-300 ${
-          completed ? 'text-green-400' : 'text-purple-400'
+      <div
+        className={`pointer-events-none absolute -right-8 -top-8 h-24 w-24 rounded-full blur-2xl ${
+          completed ? 'bg-green-500/25' : 'bg-purple-500/20'
         }`}
-      >
-        {completed ? 'Day Complete! 🎉' : 'Challenge Progress'}
-      </span>
+      />
 
-      {/* Day Count */}
-      <span
-        className={`text-7xl font-extrabold py-2 transition-all duration-300 ${
-          completed
-            ? 'text-transparent bg-clip-text bg-gradient-to-r from-green-400 to-emerald-400 scale-105 drop-shadow-[0_0_15px_rgba(34,197,94,0.4)]'
-            : 'text-transparent bg-clip-text bg-gradient-to-r from-purple-400 via-pink-400 to-blue-400'
-        }`}
-      >
-        {dayNumber}
-      </span>
+      <div className="relative flex items-baseline justify-between gap-3">
+        <div className="flex items-baseline gap-2">
+          <span
+            className={`text-4xl font-extrabold leading-none text-transparent bg-clip-text ${
+              completed
+                ? 'bg-gradient-to-r from-green-400 to-emerald-400'
+                : 'bg-gradient-to-r from-purple-400 via-pink-400 to-blue-400'
+            }`}
+          >
+            {dayNumber}
+          </span>
+          <span className="text-[11px] font-bold uppercase tracking-widest text-gray-500">
+            / {TOTAL_PROGRAM_DAYS}
+          </span>
+        </div>
 
-      {/* Description text */}
-      <span className={`text-xs font-semibold transition-colors duration-300 ${completed ? 'text-green-300' : 'text-gray-400'}`}>
-        {completed ? 'All 6 goals checked off! Keep it up!' : `of ${TOTAL_PROGRAM_DAYS} days completed`}
-      </span>
+        <div className="flex flex-col items-end">
+          <span
+            className={`text-[11px] font-bold uppercase tracking-wider ${
+              completed ? 'text-green-400' : 'text-purple-400'
+            }`}
+          >
+            {completed ? 'Day complete 🎉' : `${rulesComplete} of ${rulesTotal} done`}
+          </span>
+          <span className="text-[11px] font-medium text-gray-500">{formatDisplayDate(date)}</span>
+        </div>
+      </div>
 
-      {/* Progress Bar */}
-      <div className="mt-4 h-1.5 w-full rounded-full bg-white/5 overflow-hidden">
+      <div className="relative mt-3 h-1 w-full overflow-hidden rounded-full bg-white/5">
         <div
           className={`h-full transition-all duration-1000 ease-out ${
             completed

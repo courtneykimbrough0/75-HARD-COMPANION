@@ -4,6 +4,7 @@ import { ChecklistItem } from '@/components/dashboard/ChecklistItem'
 import { DayCounter } from '@/components/dashboard/DayCounter'
 import { ResetConfirmationBanner } from '@/components/dashboard/ResetConfirmationBanner'
 import { ProgressBar } from '@/components/ui/ProgressBar'
+import { IncrementButtonGroup } from '@/components/water/IncrementButtonGroup'
 import { useAppMeta, useTodayLog, useWorkoutsForDate, useTodayWater } from '@/db/hooks'
 import {
   getOrCreateDailyLog,
@@ -12,12 +13,21 @@ import {
   addWaterIncrement,
   overridePastDaySpacing,
 } from '@/db/repository'
+import { READING_TARGET_PAGES, WATER_TARGET_OZ, WORKOUT_MIN_MINUTES } from '@/lib/logic/constants'
 import { todayLocalDateString } from '@/lib/logic/dateUtils'
 import { validateDayWorkouts } from '@/lib/logic/workoutValidators'
 import { isDayFullyCompliant } from '@/lib/logic/dayEvaluation'
-import type { DateString } from '@/types'
+import type { DateString, WorkoutRecord } from '@/types'
 
 const today = todayLocalDateString()
+
+/** Short state line for a workout row: what happened, not just whether it's done. */
+function workoutDetail(record: WorkoutRecord | undefined): string {
+  if (!record) return 'Not started'
+  if (record.endTime === null) return 'In progress…'
+  const minutes = Math.round(record.durationSeconds / 60)
+  return `${minutes} min · ${record.isOutdoor ? 'Outdoor' : 'Indoor'}`
+}
 
 export default function Dashboard() {
   const appMeta = useAppMeta()
@@ -35,15 +45,30 @@ export default function Dashboard() {
   }, [])
 
   if (!log || !appMeta) {
-    return <p className="text-center text-gray-500 font-medium py-10">Loading…</p>
+    return <p className="py-10 text-center font-medium text-gray-500">Loading…</p>
   }
 
-  const workoutsValid = workouts ? validateDayWorkouts(workouts, !!log.workoutsSpacingOverridden) : false
+  const workoutsValid = workouts
+    ? validateDayWorkouts(workouts, !!log.workoutsSpacingOverridden)
+    : false
   const bothWorkoutsLogged = log.workout1Complete && log.workout2Complete
   const workoutsMeetAllExceptSpacing = workouts ? validateDayWorkouts(workouts, true) : false
   const workoutsValidWithoutOverride = workouts ? validateDayWorkouts(workouts, false) : false
   const completedToday = isDayFullyCompliant(log, workoutsValid)
   const waterVolume = water?.volumeOz ?? 0
+
+  const session1 = workouts?.find((r) => r.sessionNumber === 1)
+  const session2 = workouts?.find((r) => r.sessionNumber === 2)
+
+  const rules = [
+    log.workout1Complete,
+    log.workout2Complete,
+    log.waterTargetComplete,
+    log.readingTargetComplete,
+    log.dietCompliant,
+    log.photoCaptured,
+  ]
+  const rulesComplete = rules.filter(Boolean).length
 
   const pendingFailedWorkoutsValidWithOverride = pendingFailedWorkouts
     ? validateDayWorkouts(pendingFailedWorkouts, true)
@@ -65,8 +90,14 @@ export default function Dashboard() {
     !pendingFailedWorkoutsValidWithoutOverride
 
   return (
-    <div className="flex flex-col gap-6 animate-page-enter">
-      <DayCounter dayNumber={appMeta.currentDayCounter} completed={completedToday} />
+    <div className="animate-page-enter flex flex-col gap-4">
+      <DayCounter
+        dayNumber={appMeta.currentDayCounter}
+        date={today}
+        rulesComplete={rulesComplete}
+        rulesTotal={rules.length}
+        completed={completedToday}
+      />
 
       {appMeta.pendingResetReason && (
         <ResetConfirmationBanner
@@ -85,14 +116,17 @@ export default function Dashboard() {
         !workoutsValidWithoutOverride &&
         !log.workoutsSpacingOverridden && (
           <div className="flex flex-col gap-3 rounded-2xl border border-amber-500/20 bg-amber-500/5 p-4 text-sm text-amber-200">
-            <div className="flex gap-2.5 items-start">
-              <AlertTriangle className="shrink-0 text-amber-500 mt-0.5 animate-pulse" size={16} />
-              <div className="flex-1 flex flex-col gap-2">
+            <div className="flex items-start gap-2.5">
+              <AlertTriangle className="mt-0.5 shrink-0 animate-pulse text-amber-500" size={16} />
+              <div className="flex flex-1 flex-col gap-2">
                 <span className="font-semibold text-amber-400">3-Hour Spacing Conflict</span>
-                <span>Your workouts are logged close together. Did you complete them 3+ hours apart in reality?</span>
+                <span>
+                  Your workouts are logged close together. Did you complete them 3+ hours apart in
+                  reality?
+                </span>
                 <button
                   onClick={() => void setChecklistFlag(today, 'workoutsSpacingOverridden', true)}
-                  className="self-start px-3 py-1.5 text-xs font-bold rounded-xl bg-amber-500/10 border border-amber-500/20 hover:bg-amber-500/20 hover:border-amber-500/30 text-amber-200 cursor-pointer transition-all duration-200 active:scale-95"
+                  className="cursor-pointer self-start rounded-xl border border-amber-500/20 bg-amber-500/10 px-3 py-1.5 text-xs font-bold text-amber-200 transition-all duration-200 hover:border-amber-500/30 hover:bg-amber-500/20 active:scale-95"
                 >
                   Yes, Spacing Was Met
                 </button>
@@ -101,47 +135,52 @@ export default function Dashboard() {
           </div>
         )}
 
-      {/* Water Tracker Card */}
-      <div className="rounded-3xl border border-white/5 bg-white/[0.03] p-5 flex flex-col gap-4">
-        <div className="flex items-center justify-between">
-          <span className="text-sm font-semibold text-gray-300">Water Intake</span>
-          <span className="text-sm font-bold text-blue-400">{waterVolume} / 128 oz</span>
-        </div>
-        <div className="w-full">
-          <ProgressBar
-            value={waterVolume}
-            max={128}
-            colorClassName={waterVolume >= 128 ? 'bg-green-500' : 'bg-blue-500'}
-          />
-        </div>
-        <div className="flex gap-2">
-          {[8, 16, 24, 32].map((oz) => (
-            <button
-              key={oz}
-              onClick={() => void addWaterIncrement(today, oz)}
-              className="flex-1 py-1.5 text-xs font-bold rounded-xl bg-white/5 border border-white/5 hover:bg-white/10 hover:border-white/10 text-gray-300 transition-all duration-200 active:scale-95 cursor-pointer"
-            >
-              +{oz} oz
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <div className="flex flex-col gap-3">
-        <ChecklistItem label="Workout 1 (45 min)" complete={log.workout1Complete} linkTo="/workouts" />
-        <ChecklistItem label="Workout 2 (45 min)" complete={log.workout2Complete} linkTo="/workouts" />
-        <ChecklistItem label="Water (128 oz)" complete={log.waterTargetComplete} />
+      <div className="flex flex-col gap-2.5">
         <ChecklistItem
-          label="Reading (10 pages)"
+          label={`Workout 1 (${WORKOUT_MIN_MINUTES} min)`}
+          complete={log.workout1Complete}
+          detail={workoutDetail(session1)}
+          linkTo="/workouts"
+        />
+        <ChecklistItem
+          label={`Workout 2 (${WORKOUT_MIN_MINUTES} min)`}
+          complete={log.workout2Complete}
+          detail={workoutDetail(session2)}
+          linkTo="/workouts"
+        />
+        <ChecklistItem
+          label="Water"
+          complete={log.waterTargetComplete}
+          detail={`${waterVolume} / ${WATER_TARGET_OZ} oz`}
+          expandedContent={
+            <>
+              <ProgressBar
+                value={waterVolume}
+                max={WATER_TARGET_OZ}
+                colorClassName={waterVolume >= WATER_TARGET_OZ ? 'bg-green-500' : 'bg-blue-500'}
+              />
+              <IncrementButtonGroup onAdd={(amount) => void addWaterIncrement(today, amount)} />
+            </>
+          }
+        />
+        <ChecklistItem
+          label="Reading"
           complete={log.readingTargetComplete}
+          detail={`${READING_TARGET_PAGES} pages`}
           onToggle={(value) => void setChecklistFlag(today, 'readingTargetComplete', value)}
         />
         <ChecklistItem
-          label="Diet (no cheats, no alcohol)"
+          label="Diet"
           complete={log.dietCompliant}
+          detail="No cheat meals, no alcohol"
           onToggle={(value) => void setChecklistFlag(today, 'dietCompliant', value)}
         />
-        <ChecklistItem label="Progress Photo" complete={log.photoCaptured} linkTo="/photo" />
+        <ChecklistItem
+          label="Progress Photo"
+          complete={log.photoCaptured}
+          detail={log.photoCaptured ? 'Captured' : 'Not taken yet'}
+          linkTo="/photo"
+        />
       </div>
     </div>
   )

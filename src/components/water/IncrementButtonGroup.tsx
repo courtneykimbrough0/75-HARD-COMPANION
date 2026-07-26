@@ -6,16 +6,15 @@ interface IncrementButtonGroupProps {
 
 export function IncrementButtonGroup({ onAdd }: IncrementButtonGroupProps) {
   return (
-    <div className="grid grid-cols-4 gap-3">
+    <div className="grid grid-cols-4 gap-2">
       {WATER_INCREMENTS_OZ.map((amount) => (
         <button
           key={amount}
           type="button"
           onClick={() => onAdd(amount)}
-          className="flex flex-col items-center gap-1 rounded-xl bg-gray-900 py-4 text-white hover:bg-gray-800 active:bg-gray-700"
+          className="cursor-pointer rounded-xl border border-white/5 bg-white/5 py-2 text-xs font-bold text-gray-300 transition-all duration-200 hover:border-white/10 hover:bg-white/10 active:scale-95"
         >
-          <span className="text-lg font-semibold">+{amount}</span>
-          <span className="text-xs text-gray-500">oz</span>
+          +{amount} oz
         </button>
       ))}
     </div>
