@@ -1,16 +1,24 @@
 import { db, ensureAppMetaSeeded } from '@/db/db'
 import { WORKOUT_MIN_MINUTES } from '@/lib/logic/constants'
 import { emptyChecklistDefaults, isDayFullyCompliant } from '@/lib/logic/dayEvaluation'
-import { addDays, isDateBefore, todayLocalDateString } from '@/lib/logic/dateUtils'
+import { addDays, getWeekStartDate, isDateBefore, todayLocalDateString } from '@/lib/logic/dateUtils'
 import { clampWaterVolume, isWaterTargetMet } from '@/lib/logic/waterLogic'
 import { validateDayWorkouts } from '@/lib/logic/workoutValidators'
+import {
+  emptyPlannedDays,
+  mealSchema,
+  weeklyPlanSchema,
+  workoutTemplateSchema,
+} from '@/lib/schemas/planner'
 import type {
   AppMeta,
   ChecklistFlag,
   DailyLog,
   DateString,
+  Meal,
   WeeklyPlan,
   WorkoutRecord,
+  WorkoutTemplate,
 } from '@/types'
 
 async function getAppMetaValue<K extends keyof AppMeta>(key: K): Promise<AppMeta[K]> {
@@ -100,6 +108,7 @@ export async function syncWorkoutFlags(date: DateString): Promise<void> {
 export async function startWorkoutSession(
   date: DateString,
   isOutdoor: boolean,
+  templateId?: string,
 ): Promise<WorkoutRecord> {
   const existing = await getWorkoutsForDate(date)
   if (existing.length >= 2) {
@@ -114,6 +123,7 @@ export async function startWorkoutSession(
     endTime: null,
     isOutdoor,
     durationSeconds: 0,
+    ...(templateId ? { templateId } : {}),
   }
   const id = await db.workoutRecords.add(record)
   await syncWorkoutFlags(date)
@@ -200,14 +210,138 @@ export async function getAllPhotos() {
   return db.photos.orderBy('date').toArray()
 }
 
-// ---------- Planner ----------
+// ---------- Planner: reusable library ----------
 
-export async function savePlannerWeek(plan: WeeklyPlan): Promise<void> {
-  await db.weeklyPlans.put(plan)
+export async function getAllMeals(): Promise<Meal[]> {
+  const rows = await db.meals.orderBy('name').toArray()
+  return rows.filter((row) => mealSchema.safeParse(row).success)
 }
 
-export async function getPlanForWeek(weekStartDate: DateString) {
-  return db.weeklyPlans.get(weekStartDate)
+export async function saveMeal(meal: Meal): Promise<void> {
+  await db.meals.put(mealSchema.parse(meal))
+}
+
+export async function getAllWorkoutTemplates(): Promise<WorkoutTemplate[]> {
+  const rows = await db.workoutTemplates.orderBy('name').toArray()
+  return rows.filter((row) => workoutTemplateSchema.safeParse(row).success)
+}
+
+export async function saveWorkoutTemplate(template: WorkoutTemplate): Promise<void> {
+  await db.workoutTemplates.put(workoutTemplateSchema.parse(template))
+}
+
+/**
+ * Deletes a saved meal from the library. Days that already have it assigned keep
+ * their own embedded copy — deleting the library entry only stops it from being
+ * offered for *new* assignments, it never rewrites history.
+ */
+export async function deleteMeal(id: string): Promise<void> {
+  await db.meals.delete(id)
+}
+
+/** Same as `deleteMeal` — assigned days hold their own snapshot, untouched by this. */
+export async function deleteWorkoutTemplate(id: string): Promise<void> {
+  await db.workoutTemplates.delete(id)
+}
+
+export async function isMealAssignedAnywhere(mealId: string): Promise<boolean> {
+  const plans = await db.weeklyPlans.toArray()
+  return plans.some((plan) => plan.days?.some((day) => day.meals?.some((m) => m.id === mealId)))
+}
+
+export async function isWorkoutTemplateAssignedAnywhere(templateId: string): Promise<boolean> {
+  const plans = await db.weeklyPlans.toArray()
+  return plans.some(
+    (plan) =>
+      plan.days?.some(
+        (day) => day.workout1?.id === templateId || day.workout2?.id === templateId,
+      ),
+  )
+}
+
+type PropagationScope = 'future' | 'all'
+
+function isInPropagationScope(plan: WeeklyPlan, scope: PropagationScope): boolean {
+  if (scope === 'all') return true
+  const currentWeekStart = getWeekStartDate(todayLocalDateString())
+  return !isDateBefore(plan.weekStartDate, currentWeekStart)
+}
+
+/**
+ * Re-snapshots an edited meal into every day that already had it assigned, within
+ * `scope`. Weeks outside the scope — past weeks, when `scope` is `'future'` — are
+ * left exactly as they were. Not calling this at all (the caller can simply skip
+ * it) leaves every existing assignment untouched and only affects meals assigned
+ * from now on, which is the deliberate "don't rewrite anything" option.
+ */
+export async function propagateMealEdit(meal: Meal, scope: PropagationScope): Promise<void> {
+  await db.transaction('rw', db.weeklyPlans, async () => {
+    const plans = await db.weeklyPlans.toArray()
+    for (const plan of plans) {
+      if (!isInPropagationScope(plan, scope)) continue
+      if (!plan.days?.some((day) => day.meals?.some((m) => m.id === meal.id))) continue
+      const days = plan.days.map((day) => ({
+        ...day,
+        meals: day.meals.map((m) => (m.id === meal.id ? meal : m)),
+      }))
+      await db.weeklyPlans.put({ ...plan, days, updatedAt: Date.now() })
+    }
+  })
+}
+
+/** Same propagation rule as `propagateMealEdit`, applied to both workout slots. */
+export async function propagateWorkoutTemplateEdit(
+  template: WorkoutTemplate,
+  scope: PropagationScope,
+): Promise<void> {
+  await db.transaction('rw', db.weeklyPlans, async () => {
+    const plans = await db.weeklyPlans.toArray()
+    for (const plan of plans) {
+      if (!isInPropagationScope(plan, scope)) continue
+      const referenced = plan.days?.some(
+        (day) => day.workout1?.id === template.id || day.workout2?.id === template.id,
+      )
+      if (!referenced) continue
+      const days = plan.days.map((day) => ({
+        ...day,
+        workout1: day.workout1?.id === template.id ? template : day.workout1,
+        workout2: day.workout2?.id === template.id ? template : day.workout2,
+      }))
+      await db.weeklyPlans.put({ ...plan, days, updatedAt: Date.now() })
+    }
+  })
+}
+
+// ---------- Planner: weekly assignment ----------
+
+export async function savePlannerWeek(plan: WeeklyPlan): Promise<void> {
+  await db.weeklyPlans.put(weeklyPlanSchema.parse(plan))
+}
+
+/**
+ * Reads a week, tolerating rows written by the v1 flat-string planner: anything
+ * that fails validation degrades to an empty week rather than crashing the route.
+ */
+export async function getPlanForWeek(weekStartDate: DateString): Promise<WeeklyPlan | undefined> {
+  const row = await db.weeklyPlans.get(weekStartDate)
+  if (!row) return undefined
+
+  const parsed = weeklyPlanSchema.safeParse(row)
+  const plan: WeeklyPlan = parsed.success
+    ? parsed.data
+    : {
+        weekStartDate,
+        weekEndDate: row.weekEndDate ?? weekStartDate,
+        days: [],
+        updatedAt: Date.now(),
+      }
+
+  // A v1 row has no `days` at all, and the schema default turns that into `[]`.
+  // Normalize to a full week so callers always get seven assignable days.
+  if (plan.days.length === 0) {
+    return { ...plan, days: emptyPlannedDays() }
+  }
+  return plan
 }
 
 // ---------- Day evaluation & reset ----------

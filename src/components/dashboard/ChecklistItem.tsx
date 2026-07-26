@@ -74,6 +74,39 @@ export function ChecklistItem({
     )
   }
 
+  const chevron = (
+    <ChevronDown
+      size={16}
+      className={`shrink-0 text-gray-500 transition-transform duration-300 ${
+        expanded ? 'rotate-180' : ''
+      }`}
+    />
+  )
+
+  // A toggle alongside expandable content can't nest inside a row-level button —
+  // that would put a button inside a button — so the chevron gets its own control.
+  if (expandedContent && onToggle) {
+    return (
+      <div className={shellClasses}>
+        <div className={rowClasses}>
+          {statusDot}
+          {body}
+          <Toggle checked={complete} onChange={onToggle} label={label} />
+          <button
+            type="button"
+            onClick={() => setExpanded((v) => !v)}
+            aria-expanded={expanded}
+            aria-label={`${expanded ? 'Hide' : 'Show'} ${label} details`}
+            className="shrink-0 cursor-pointer rounded-lg p-0.5 transition-colors hover:bg-white/10 focus-visible:ring-2 focus-visible:ring-purple-500 focus-visible:outline-none"
+          >
+            {chevron}
+          </button>
+        </div>
+        {expanded && <div className="flex flex-col gap-3 px-4 pb-4">{expandedContent}</div>}
+      </div>
+    )
+  }
+
   if (expandedContent) {
     return (
       <div className={shellClasses}>
@@ -81,16 +114,11 @@ export function ChecklistItem({
           type="button"
           onClick={() => setExpanded((v) => !v)}
           aria-expanded={expanded}
-          className={`${rowClasses} cursor-pointer rounded-2xl transition-colors hover:bg-white/[0.02]`}
+          className={`${rowClasses} cursor-pointer rounded-2xl transition-colors hover:bg-white/[0.02] focus-visible:ring-2 focus-visible:ring-purple-500 focus-visible:outline-none`}
         >
           {statusDot}
           {body}
-          <ChevronDown
-            size={16}
-            className={`shrink-0 text-gray-500 transition-transform duration-300 ${
-              expanded ? 'rotate-180' : ''
-            }`}
-          />
+          {chevron}
         </button>
         {expanded && <div className="flex flex-col gap-3 px-4 pb-4">{expandedContent}</div>}
       </div>

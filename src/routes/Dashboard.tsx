@@ -5,7 +5,7 @@ import { DayCounter } from '@/components/dashboard/DayCounter'
 import { ResetConfirmationBanner } from '@/components/dashboard/ResetConfirmationBanner'
 import { ProgressBar } from '@/components/ui/ProgressBar'
 import { IncrementButtonGroup } from '@/components/water/IncrementButtonGroup'
-import { useAppMeta, useTodayLog, useWorkoutsForDate, useTodayWater } from '@/db/hooks'
+import { useAppMeta, useTodayLog, useTodayPlan, useWorkoutsForDate, useTodayWater } from '@/db/hooks'
 import {
   getOrCreateDailyLog,
   resetToDayOne,
@@ -14,6 +14,7 @@ import {
   overridePastDaySpacing,
 } from '@/db/repository'
 import { READING_TARGET_PAGES, WATER_TARGET_OZ, WORKOUT_MIN_MINUTES } from '@/lib/logic/constants'
+import { MEAL_SLOT_LABELS } from '@/lib/schemas/planner'
 import { todayLocalDateString } from '@/lib/logic/dateUtils'
 import { validateDayWorkouts } from '@/lib/logic/workoutValidators'
 import { isDayFullyCompliant } from '@/lib/logic/dayEvaluation'
@@ -21,9 +22,20 @@ import type { DateString, WorkoutRecord } from '@/types'
 
 const today = todayLocalDateString()
 
-/** Short state line for a workout row: what happened, not just whether it's done. */
-function workoutDetail(record: WorkoutRecord | undefined): string {
-  if (!record) return 'Not started'
+/**
+ * Short state line for a workout row: what happened, or — before anything is
+ * logged — what the planner says you intended to do.
+ */
+function workoutDetail(
+  record: WorkoutRecord | undefined,
+  planned?: { name: string; isOutdoor: boolean },
+  plannedTime?: string,
+): string {
+  if (!record) {
+    if (!planned) return 'Not started'
+    const time = plannedTime ? ` · ${plannedTime}` : ''
+    return `Planned: ${planned.name}${planned.isOutdoor ? ' · outdoor' : ''}${time}`
+  }
   if (record.endTime === null) return 'In progress…'
   const minutes = Math.round(record.durationSeconds / 60)
   return `${minutes} min · ${record.isOutdoor ? 'Outdoor' : 'Indoor'}`
@@ -34,6 +46,7 @@ export default function Dashboard() {
   const log = useTodayLog(today)
   const workouts = useWorkoutsForDate(today)
   const water = useTodayWater(today)
+  const todayPlan = useTodayPlan(today)
 
   const failedDateMatch = appMeta?.pendingResetReason?.match(/\((20\d{2}-\d{2}-\d{2})\)/)
   const pendingFailedDate = failedDateMatch ? (failedDateMatch[1] as DateString) : undefined
@@ -59,6 +72,7 @@ export default function Dashboard() {
 
   const session1 = workouts?.find((r) => r.sessionNumber === 1)
   const session2 = workouts?.find((r) => r.sessionNumber === 2)
+  const plannedMeals = todayPlan?.meals ?? []
 
   const rules = [
     log.workout1Complete,
@@ -139,13 +153,21 @@ export default function Dashboard() {
         <ChecklistItem
           label={`Workout 1 (${WORKOUT_MIN_MINUTES} min)`}
           complete={log.workout1Complete}
-          detail={workoutDetail(session1)}
+          detail={workoutDetail(
+            session1,
+            todayPlan?.workout1,
+            todayPlan?.day.workout1TargetTime,
+          )}
           linkTo="/workouts"
         />
         <ChecklistItem
           label={`Workout 2 (${WORKOUT_MIN_MINUTES} min)`}
           complete={log.workout2Complete}
-          detail={workoutDetail(session2)}
+          detail={workoutDetail(
+            session2,
+            todayPlan?.workout2,
+            todayPlan?.day.workout2TargetTime,
+          )}
           linkTo="/workouts"
         />
         <ChecklistItem
@@ -172,8 +194,36 @@ export default function Dashboard() {
         <ChecklistItem
           label="Diet"
           complete={log.dietCompliant}
-          detail="No cheat meals, no alcohol"
+          detail={
+            plannedMeals.length > 0
+              ? `${plannedMeals.length} meal${plannedMeals.length === 1 ? '' : 's'} planned`
+              : 'No cheat meals, no alcohol'
+          }
           onToggle={(value) => void setChecklistFlag(today, 'dietCompliant', value)}
+          expandedContent={
+            plannedMeals.length > 0 ? (
+              <div className="flex flex-col gap-2.5">
+                {plannedMeals.map((meal) => (
+                  <div key={meal.id} className="flex flex-col gap-1">
+                    <span className="text-xs font-bold text-gray-300">
+                      {meal.name}
+                      <span className="ml-1.5 font-medium text-gray-500">
+                        {MEAL_SLOT_LABELS[meal.slot]}
+                      </span>
+                    </span>
+                    <ul className="flex flex-col gap-0.5 pl-3">
+                      {meal.dishes.map((dish) => (
+                        <li key={dish.id} className="text-[11px] text-gray-400">
+                          {dish.name}
+                          {dish.amount && <span className="text-gray-600"> · {dish.amount}</span>}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ))}
+              </div>
+            ) : undefined
+          }
         />
         <ChecklistItem
           label="Progress Photo"
