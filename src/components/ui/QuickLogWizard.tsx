@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { X, Droplet, Dumbbell, BookOpen, Utensils, Camera, CheckCircle2 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { useTodayLog, useTodayWater } from '@/db/hooks'
@@ -14,6 +15,8 @@ export function QuickLogWizard({ isOpen, onClose }: QuickLogWizardProps) {
   const today = todayLocalDateString()
   const log = useTodayLog(today)
   const water = useTodayWater(today)
+
+  const [waterMode, setWaterMode] = useState<'add' | 'sub'>('add')
 
   if (!isOpen || !log) return null
 
@@ -42,9 +45,29 @@ export function QuickLogWizard({ isOpen, onClose }: QuickLogWizardProps) {
           {/* Section 1: Water Intake */}
           <div className="flex flex-col gap-2.5 rounded-2xl border border-white/5 bg-white/[0.02] p-4">
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Droplet size={16} className="text-blue-400" />
-                <span className="text-xs font-bold text-gray-200">Water Intake</span>
+              <div className="flex items-center gap-3">
+                <div className="flex items-center gap-1.5">
+                  <Droplet size={16} className="text-blue-400" />
+                  <span className="text-xs font-bold text-gray-200">Water Intake</span>
+                </div>
+                <div className="flex rounded-lg bg-white/5 p-0.5 border border-white/5">
+                  <button
+                    onClick={() => setWaterMode('add')}
+                    className={`px-2 py-0.5 text-[9px] font-bold rounded-md transition-all cursor-pointer ${
+                      waterMode === 'add' ? 'bg-purple-600 text-white shadow-sm' : 'text-gray-400 hover:text-gray-200'
+                    }`}
+                  >
+                    Add
+                  </button>
+                  <button
+                    onClick={() => setWaterMode('sub')}
+                    className={`px-2 py-0.5 text-[9px] font-bold rounded-md transition-all cursor-pointer ${
+                      waterMode === 'sub' ? 'bg-red-500/20 border border-red-500/20 text-red-300 shadow-sm' : 'text-gray-400 hover:text-gray-200'
+                    }`}
+                  >
+                    Remove
+                  </button>
+                </div>
               </div>
               <span className="text-xs font-bold text-blue-400">{waterVolume} / 128 oz</span>
             </div>
@@ -57,10 +80,14 @@ export function QuickLogWizard({ isOpen, onClose }: QuickLogWizardProps) {
               {[8, 16, 24, 32].map((oz) => (
                 <button
                   key={oz}
-                  onClick={() => void addWaterIncrement(today, oz)}
-                  className="py-1.5 text-[11px] font-bold rounded-xl bg-white/5 border border-white/5 hover:bg-white/10 text-gray-300 transition-all active:scale-95 cursor-pointer"
+                  onClick={() => void addWaterIncrement(today, waterMode === 'add' ? oz : -oz)}
+                  className={`py-1.5 text-[11px] font-bold rounded-xl border transition-all active:scale-95 cursor-pointer ${
+                    waterMode === 'add'
+                      ? 'bg-white/5 border-white/5 hover:bg-white/10 text-gray-300'
+                      : 'bg-red-950/20 border-red-900/30 hover:bg-red-950/30 text-red-300 hover:text-red-200'
+                  }`}
                 >
-                  +{oz}oz
+                  {waterMode === 'add' ? `+${oz}` : `-${oz}`}oz
                 </button>
               ))}
             </div>
