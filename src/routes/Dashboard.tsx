@@ -5,10 +5,17 @@ import { DayCounter } from '@/components/dashboard/DayCounter'
 import { ResetConfirmationBanner } from '@/components/dashboard/ResetConfirmationBanner'
 import { ProgressBar } from '@/components/ui/ProgressBar'
 import { useAppMeta, useTodayLog, useWorkoutsForDate, useTodayWater } from '@/db/hooks'
-import { getOrCreateDailyLog, resetToDayOne, setChecklistFlag, addWaterIncrement } from '@/db/repository'
+import {
+  getOrCreateDailyLog,
+  resetToDayOne,
+  setChecklistFlag,
+  addWaterIncrement,
+  overridePastDaySpacing,
+} from '@/db/repository'
 import { todayLocalDateString } from '@/lib/logic/dateUtils'
 import { validateDayWorkouts } from '@/lib/logic/workoutValidators'
 import { isDayFullyCompliant } from '@/lib/logic/dayEvaluation'
+import type { DateString } from '@/types'
 
 const today = todayLocalDateString()
 
@@ -17,6 +24,11 @@ export default function Dashboard() {
   const log = useTodayLog(today)
   const workouts = useWorkoutsForDate(today)
   const water = useTodayWater(today)
+
+  const failedDateMatch = appMeta?.pendingResetReason?.match(/\((20\d{2}-\d{2}-\d{2})\)/)
+  const pendingFailedDate = failedDateMatch ? (failedDateMatch[1] as DateString) : undefined
+  const pendingFailedLog = useTodayLog(pendingFailedDate ?? '')
+  const pendingFailedWorkouts = useWorkoutsForDate(pendingFailedDate ?? '')
 
   useEffect(() => {
     void getOrCreateDailyLog(today)
@@ -31,6 +43,18 @@ export default function Dashboard() {
   const completedToday = isDayFullyCompliant(log, workoutsValid)
   const waterVolume = water?.volumeOz ?? 0
 
+  const canOverridePendingResetSpacing =
+    !!pendingFailedDate &&
+    !!pendingFailedLog &&
+    !!pendingFailedWorkouts &&
+    pendingFailedLog.workout1Complete &&
+    pendingFailedLog.workout2Complete &&
+    pendingFailedLog.waterTargetComplete &&
+    pendingFailedLog.readingTargetComplete &&
+    pendingFailedLog.dietCompliant &&
+    pendingFailedLog.photoCaptured &&
+    !validateDayWorkouts(pendingFailedWorkouts)
+
   return (
     <div className="flex flex-col gap-6 animate-page-enter">
       <DayCounter dayNumber={appMeta.currentDayCounter} completed={completedToday} />
@@ -39,6 +63,11 @@ export default function Dashboard() {
         <ResetConfirmationBanner
           reason={appMeta.pendingResetReason}
           onReset={() => void resetToDayOne()}
+          onOverrideSpacing={
+            canOverridePendingResetSpacing
+              ? () => void overridePastDaySpacing(pendingFailedDate!)
+              : undefined
+          }
         />
       )}
 
