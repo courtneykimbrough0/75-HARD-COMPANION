@@ -76,6 +76,10 @@ export async function getWorkoutsForDate(date: DateString): Promise<WorkoutRecor
   return db.workoutRecords.where('date').equals(date).sortBy('startTime')
 }
 
+/**
+ * Synchronizes workout1Complete and workout2Complete flags in the DailyLog
+ * based on all completed workout records for the specified calendar date.
+ */
 export async function syncWorkoutFlags(date: DateString): Promise<void> {
   const workouts = await getWorkoutsForDate(date)
   const workout1Complete = workouts.length > 0 && workouts[0].endTime !== null && workouts[0].durationSeconds >= WORKOUT_MIN_MINUTES * 60
@@ -133,6 +137,9 @@ export async function stopWorkoutSession(
   return updated
 }
 
+/**
+ * Deletes a recorded workout session by ID and synchronizes daily log workout flags.
+ */
 export async function deleteWorkoutSession(id: number): Promise<void> {
   const record = await db.workoutRecords.get(id)
   if (!record) return
@@ -141,6 +148,10 @@ export async function deleteWorkoutSession(id: number): Promise<void> {
   await syncWorkoutFlags(record.date)
 }
 
+/**
+ * Creates and immediately logs a completed 45-minute workout session
+ * without requiring the user to run an active timer.
+ */
 export async function quickCompleteWorkoutSession(
   date: DateString,
   isOutdoor: boolean,
