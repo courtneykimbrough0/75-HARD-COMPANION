@@ -13,11 +13,11 @@ const DEFAULT_APP_META: AppMeta = {
 
 let seedPromise: Promise<void> | null = null
 
-export async function ensureAppMetaSeeded(): Promise<void> {
-  const count = await db.appMeta.count()
-  if (count === 0) {
-    seedPromise = null
-  }
+export function resetSeedCacheForTests(): void {
+  seedPromise = null
+}
+
+export function ensureAppMetaSeeded(): Promise<void> {
   if (!seedPromise) {
     seedPromise = db.transaction('rw', db.appMeta, async () => {
       const existingKeys = new Set(await db.appMeta.toCollection().primaryKeys())

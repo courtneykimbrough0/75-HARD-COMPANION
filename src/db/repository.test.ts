@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import 'fake-indexeddb/auto'
-import { db } from './db'
+import { db, resetSeedCacheForTests } from './db'
 import {
   catchUpEvaluation,
   deleteWorkoutSession,
@@ -10,23 +10,28 @@ import {
   quickCompleteWorkoutSession,
   startWorkoutSession,
 } from './repository'
+import { addDays, todayLocalDateString } from '@/lib/logic/dateUtils'
 import type { WorkoutRecord } from '@/types'
 
 describe('repository IndexedDB integration tests', () => {
   beforeEach(async () => {
+    resetSeedCacheForTests()
     await db.delete()
     await db.open()
   })
 
   it('catchUpEvaluation honors workoutsSpacingOverridden on past dates', async () => {
-    const pastDate = '2026-07-24'
-    await db.appMeta.put({ key: 'cycleStartDate', value: pastDate })
-    await db.appMeta.put({ key: 'lastEvaluatedDate', value: '2026-07-23' })
+    const today = todayLocalDateString()
+    const yesterday = addDays(today, -1)
+    const dayBeforeYesterday = addDays(today, -2)
+
+    await db.appMeta.put({ key: 'cycleStartDate', value: yesterday })
+    await db.appMeta.put({ key: 'lastEvaluatedDate', value: dayBeforeYesterday })
     await db.appMeta.put({ key: 'currentDayCounter', value: 1 })
     await db.appMeta.put({ key: 'pendingResetReason', value: null })
 
-    await getOrCreateDailyLog(pastDate)
-    await db.dailyLogs.update(pastDate, {
+    await getOrCreateDailyLog(yesterday)
+    await db.dailyLogs.update(yesterday, {
       workout1Complete: true,
       workout2Complete: true,
       waterTargetComplete: true,
@@ -36,10 +41,10 @@ describe('repository IndexedDB integration tests', () => {
       workoutsSpacingOverridden: true,
     })
 
-    // Seed 2 workouts < 3h apart
+    // Seed 2 workouts < 3h apart (1 outdoor)
     const now = Date.now()
     const w1: WorkoutRecord = {
-      date: pastDate,
+      date: yesterday,
       sessionNumber: 1,
       startTime: now - 100000,
       endTime: now - 90000,
@@ -47,7 +52,7 @@ describe('repository IndexedDB integration tests', () => {
       durationSeconds: 2700,
     }
     const w2: WorkoutRecord = {
-      date: pastDate,
+      date: yesterday,
       sessionNumber: 2,
       startTime: now - 80000,
       endTime: now - 70000,
@@ -58,7 +63,7 @@ describe('repository IndexedDB integration tests', () => {
 
     await catchUpEvaluation()
 
-    const updatedLog = await db.dailyLogs.get(pastDate)
+    const updatedLog = await db.dailyLogs.get(yesterday)
     expect(updatedLog?.status).toBe('pass')
     const pendingReason = await db.appMeta.get('pendingResetReason')
     expect(pendingReason?.value).toBeNull()
@@ -67,14 +72,17 @@ describe('repository IndexedDB integration tests', () => {
   })
 
   it('overridePastDaySpacing resolves a pending reset for a failed date', async () => {
-    const pastDate = '2026-07-24'
-    await db.appMeta.put({ key: 'cycleStartDate', value: pastDate })
-    await db.appMeta.put({ key: 'lastEvaluatedDate', value: '2026-07-23' })
+    const today = todayLocalDateString()
+    const yesterday = addDays(today, -1)
+    const dayBeforeYesterday = addDays(today, -2)
+
+    await db.appMeta.put({ key: 'cycleStartDate', value: yesterday })
+    await db.appMeta.put({ key: 'lastEvaluatedDate', value: dayBeforeYesterday })
     await db.appMeta.put({ key: 'currentDayCounter', value: 1 })
     await db.appMeta.put({ key: 'pendingResetReason', value: null })
 
-    await getOrCreateDailyLog(pastDate)
-    await db.dailyLogs.update(pastDate, {
+    await getOrCreateDailyLog(yesterday)
+    await db.dailyLogs.update(yesterday, {
       workout1Complete: true,
       workout2Complete: true,
       waterTargetComplete: true,
@@ -86,7 +94,7 @@ describe('repository IndexedDB integration tests', () => {
     // Seed 2 workouts < 3h apart without override
     const now = Date.now()
     const w1: WorkoutRecord = {
-      date: pastDate,
+      date: yesterday,
       sessionNumber: 1,
       startTime: now - 100000,
       endTime: now - 90000,
@@ -94,7 +102,7 @@ describe('repository IndexedDB integration tests', () => {
       durationSeconds: 2700,
     }
     const w2: WorkoutRecord = {
-      date: pastDate,
+      date: yesterday,
       sessionNumber: 2,
       startTime: now - 80000,
       endTime: now - 70000,
@@ -103,17 +111,17 @@ describe('repository IndexedDB integration tests', () => {
     }
     await db.workoutRecords.bulkAdd([w1, w2])
 
-    // First catch-up: fails
+    // First catch-up: fails due to spacing
     await catchUpEvaluation()
-    let updatedLog = await db.dailyLogs.get(pastDate)
+    let updatedLog = await db.dailyLogs.get(yesterday)
     expect(updatedLog?.status).toBe('fail')
     let pendingReason = await db.appMeta.get('pendingResetReason')
-    expect(pendingReason?.value).toContain(pastDate)
+    expect(pendingReason?.value).toContain(yesterday)
 
     // Apply retroactive override
-    await overridePastDaySpacing(pastDate)
+    await overridePastDaySpacing(yesterday)
 
-    updatedLog = await db.dailyLogs.get(pastDate)
+    updatedLog = await db.dailyLogs.get(yesterday)
     expect(updatedLog?.status).toBe('pass')
     pendingReason = await db.appMeta.get('pendingResetReason')
     expect(pendingReason?.value).toBeNull()
@@ -122,7 +130,7 @@ describe('repository IndexedDB integration tests', () => {
   })
 
   it('deleteWorkoutSession renumbers surviving sessions and prevents duplicates', async () => {
-    const today = '2026-07-25'
+    const today = todayLocalDateString()
     const s1 = await quickCompleteWorkoutSession(today, false)
     await quickCompleteWorkoutSession(today, true)
 

@@ -67,7 +67,7 @@ describe('workoutValidators', () => {
     expect(validateOutdoorRequirement(indoor1, outdoor2)).toBe(true)
   })
 
-  it('validateDayWorkouts evaluates complete day criteria', () => {
+  it('validateDayWorkouts evaluates complete day criteria and narrows spacing override', () => {
     const first: WorkoutRecord = {
       date: '2026-07-24',
       sessionNumber: 1,
@@ -84,6 +84,10 @@ describe('workoutValidators', () => {
       isOutdoor: true,
       durationSeconds: 2700,
     }
+    const secondCloseIndoor: WorkoutRecord = {
+      ...secondCloseOutdoor,
+      isOutdoor: false,
+    }
     const secondSpacedOutdoor: WorkoutRecord = {
       date: '2026-07-24',
       sessionNumber: 2,
@@ -92,9 +96,19 @@ describe('workoutValidators', () => {
       isOutdoor: true,
       durationSeconds: 2700,
     }
+    const firstShort: WorkoutRecord = {
+      ...first,
+      durationSeconds: 2000, // Under 45 minutes
+    }
 
+    // Without override
     expect(validateDayWorkouts([first])).toBe(false)
     expect(validateDayWorkouts([first, secondCloseOutdoor])).toBe(false)
     expect(validateDayWorkouts([first, secondSpacedOutdoor])).toBe(true)
+
+    // With spacing override (bypasses ONLY 3-hour spacing)
+    expect(validateDayWorkouts([first, secondCloseOutdoor], true)).toBe(true)
+    expect(validateDayWorkouts([first, secondCloseIndoor], true)).toBe(false) // Fails outdoor rule!
+    expect(validateDayWorkouts([firstShort, secondSpacedOutdoor], true)).toBe(false) // Fails duration rule!
   })
 })

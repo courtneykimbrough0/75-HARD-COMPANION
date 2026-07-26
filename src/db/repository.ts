@@ -249,7 +249,7 @@ export async function catchUpEvaluation(): Promise<void> {
   while (isDateBefore(cursor, today)) {
     const log = await getOrCreateDailyLog(cursor)
     const workouts = await getWorkoutsForDate(cursor)
-    const workoutsValid = validateDayWorkouts(workouts) || !!log.workoutsSpacingOverridden
+    const workoutsValid = validateDayWorkouts(workouts, !!log.workoutsSpacingOverridden)
     const passed = isDayFullyCompliant(log, workoutsValid)
 
     if (passed) {
