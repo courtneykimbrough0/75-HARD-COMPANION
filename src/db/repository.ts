@@ -82,8 +82,12 @@ export async function getWorkoutsForDate(date: DateString): Promise<WorkoutRecor
  */
 export async function syncWorkoutFlags(date: DateString): Promise<void> {
   const workouts = await getWorkoutsForDate(date)
-  const workout1Complete = workouts.length > 0 && workouts[0].endTime !== null && workouts[0].durationSeconds >= WORKOUT_MIN_MINUTES * 60
-  const workout2Complete = workouts.length > 1 && workouts[1].endTime !== null && workouts[1].durationSeconds >= WORKOUT_MIN_MINUTES * 60
+  const session1 = workouts.find((r) => r.sessionNumber === 1)
+  const session2 = workouts.find((r) => r.sessionNumber === 2)
+  const workout1Complete =
+    !!session1 && session1.endTime !== null && session1.durationSeconds >= WORKOUT_MIN_MINUTES * 60
+  const workout2Complete =
+    !!session2 && session2.endTime !== null && session2.durationSeconds >= WORKOUT_MIN_MINUTES * 60
 
   await getOrCreateDailyLog(date)
   await db.dailyLogs.update(date, {
@@ -101,7 +105,8 @@ export async function startWorkoutSession(
   if (existing.length >= 2) {
     throw new Error('Both workout sessions are already logged for this day')
   }
-  const sessionNumber = (existing.length + 1) as 1 | 2
+  const usedNumbers = new Set(existing.map((r) => r.sessionNumber))
+  const sessionNumber = ([1, 2].find((n) => !usedNumbers.has(n as 1 | 2)) ?? 1) as 1 | 2
   const record: WorkoutRecord = {
     date,
     sessionNumber,
@@ -138,13 +143,21 @@ export async function stopWorkoutSession(
 }
 
 /**
- * Deletes a recorded workout session by ID and synchronizes daily log workout flags.
+ * Deletes a recorded workout session by ID, re-indexes remaining sessions,
+ * and synchronizes daily log workout flags.
  */
 export async function deleteWorkoutSession(id: number): Promise<void> {
   const record = await db.workoutRecords.get(id)
   if (!record) return
 
   await db.workoutRecords.delete(id)
+  const remaining = await getWorkoutsForDate(record.date)
+  for (let i = 0; i < remaining.length; i++) {
+    const expectedSession = (i + 1) as 1 | 2
+    if (remaining[i].sessionNumber !== expectedSession && remaining[i].id != null) {
+      await db.workoutRecords.update(remaining[i].id!, { sessionNumber: expectedSession })
+    }
+  }
   await syncWorkoutFlags(record.date)
 }
 
@@ -160,7 +173,8 @@ export async function quickCompleteWorkoutSession(
   if (existing.length >= 2) {
     throw new Error('Both workout sessions are already logged for this day')
   }
-  const sessionNumber = (existing.length + 1) as 1 | 2
+  const usedNumbers = new Set(existing.map((r) => r.sessionNumber))
+  const sessionNumber = ([1, 2].find((n) => !usedNumbers.has(n as 1 | 2)) ?? 1) as 1 | 2
   const now = Date.now()
   const record: WorkoutRecord = {
     date,
@@ -199,6 +213,23 @@ export async function getPlanForWeek(weekStartDate: DateString) {
 // ---------- Day evaluation & reset ----------
 
 /**
+ * Certifies/overrides workout spacing for a specific date (current or past day).
+ * If a pending reset was active for that date, clears the pending reset, rolls back
+ * lastEvaluatedDate to the day before, and re-runs catchUpEvaluation.
+ */
+export async function overridePastDaySpacing(date: DateString): Promise<void> {
+  await getOrCreateDailyLog(date)
+  await db.dailyLogs.update(date, { workoutsSpacingOverridden: true, updatedAt: Date.now() })
+
+  const pendingReason = await getAppMetaValue('pendingResetReason')
+  if (pendingReason && pendingReason.includes(date)) {
+    await setAppMetaValue('pendingResetReason', null)
+    await setAppMetaValue('lastEvaluatedDate', addDays(date, -1))
+    await catchUpEvaluation()
+  }
+}
+
+/**
  * Walks forward from the day after `lastEvaluatedDate` through yesterday, scoring each day
  * pass/fail. Auto-increments the counter on passes. Stops (without resetting) at the first
  * failure and surfaces `pendingResetReason` for the dashboard to confirm before resetting.
@@ -218,7 +249,7 @@ export async function catchUpEvaluation(): Promise<void> {
   while (isDateBefore(cursor, today)) {
     const log = await getOrCreateDailyLog(cursor)
     const workouts = await getWorkoutsForDate(cursor)
-    const workoutsValid = validateDayWorkouts(workouts)
+    const workoutsValid = validateDayWorkouts(workouts, !!log.workoutsSpacingOverridden)
     const passed = isDayFullyCompliant(log, workoutsValid)
 
     if (passed) {

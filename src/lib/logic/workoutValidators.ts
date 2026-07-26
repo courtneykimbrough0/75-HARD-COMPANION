@@ -24,9 +24,12 @@ export function validateOutdoorRequirement(
 
 /**
  * Full day-level workout validation: both sessions logged, each meeting the duration
- * minimum, spaced >=3hrs apart, and at least one outdoor.
+ * minimum, spaced >=3hrs apart (or spacingOverridden), and at least one outdoor.
  */
-export function validateDayWorkouts(records: WorkoutRecord[]): boolean {
+export function validateDayWorkouts(
+  records: WorkoutRecord[],
+  spacingOverridden = false,
+): boolean {
   const session1 = records.find((r) => r.sessionNumber === 1)
   const session2 = records.find((r) => r.sessionNumber === 2)
   if (!session1 || !session2) return false
@@ -36,7 +39,8 @@ export function validateDayWorkouts(records: WorkoutRecord[]): boolean {
   const [earlier, later] =
     session1.startTime <= session2.startTime ? [session1, session2] : [session2, session1]
 
-  return (
-    validateWorkoutSpacing(earlier, later) && validateOutdoorRequirement(session1, session2)
-  )
+  const spacingValid = spacingOverridden || validateWorkoutSpacing(earlier, later)
+  const outdoorValid = validateOutdoorRequirement(session1, session2)
+
+  return spacingValid && outdoorValid
 }

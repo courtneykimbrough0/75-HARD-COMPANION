@@ -5,10 +5,17 @@ import { DayCounter } from '@/components/dashboard/DayCounter'
 import { ResetConfirmationBanner } from '@/components/dashboard/ResetConfirmationBanner'
 import { ProgressBar } from '@/components/ui/ProgressBar'
 import { useAppMeta, useTodayLog, useWorkoutsForDate, useTodayWater } from '@/db/hooks'
-import { getOrCreateDailyLog, resetToDayOne, setChecklistFlag, addWaterIncrement } from '@/db/repository'
+import {
+  getOrCreateDailyLog,
+  resetToDayOne,
+  setChecklistFlag,
+  addWaterIncrement,
+  overridePastDaySpacing,
+} from '@/db/repository'
 import { todayLocalDateString } from '@/lib/logic/dateUtils'
 import { validateDayWorkouts } from '@/lib/logic/workoutValidators'
 import { isDayFullyCompliant } from '@/lib/logic/dayEvaluation'
+import type { DateString } from '@/types'
 
 const today = todayLocalDateString()
 
@@ -18,6 +25,11 @@ export default function Dashboard() {
   const workouts = useWorkoutsForDate(today)
   const water = useTodayWater(today)
 
+  const failedDateMatch = appMeta?.pendingResetReason?.match(/\((20\d{2}-\d{2}-\d{2})\)/)
+  const pendingFailedDate = failedDateMatch ? (failedDateMatch[1] as DateString) : undefined
+  const pendingFailedLog = useTodayLog(pendingFailedDate ?? '')
+  const pendingFailedWorkouts = useWorkoutsForDate(pendingFailedDate ?? '')
+
   useEffect(() => {
     void getOrCreateDailyLog(today)
   }, [])
@@ -26,10 +38,31 @@ export default function Dashboard() {
     return <p className="text-center text-gray-500 font-medium py-10">Loading…</p>
   }
 
-  const workoutsValid = (workouts ? validateDayWorkouts(workouts) : false) || !!log.workoutsSpacingOverridden
+  const workoutsValid = workouts ? validateDayWorkouts(workouts, !!log.workoutsSpacingOverridden) : false
   const bothWorkoutsLogged = log.workout1Complete && log.workout2Complete
+  const workoutsMeetAllExceptSpacing = workouts ? validateDayWorkouts(workouts, true) : false
+  const workoutsValidWithoutOverride = workouts ? validateDayWorkouts(workouts, false) : false
   const completedToday = isDayFullyCompliant(log, workoutsValid)
   const waterVolume = water?.volumeOz ?? 0
+
+  const pendingFailedWorkoutsValidWithOverride = pendingFailedWorkouts
+    ? validateDayWorkouts(pendingFailedWorkouts, true)
+    : false
+  const pendingFailedWorkoutsValidWithoutOverride = pendingFailedWorkouts
+    ? validateDayWorkouts(pendingFailedWorkouts, false)
+    : false
+
+  const canOverridePendingResetSpacing =
+    !!pendingFailedDate &&
+    !!pendingFailedLog &&
+    pendingFailedLog.workout1Complete &&
+    pendingFailedLog.workout2Complete &&
+    pendingFailedLog.waterTargetComplete &&
+    pendingFailedLog.readingTargetComplete &&
+    pendingFailedLog.dietCompliant &&
+    pendingFailedLog.photoCaptured &&
+    pendingFailedWorkoutsValidWithOverride &&
+    !pendingFailedWorkoutsValidWithoutOverride
 
   return (
     <div className="flex flex-col gap-6 animate-page-enter">
@@ -39,26 +72,34 @@ export default function Dashboard() {
         <ResetConfirmationBanner
           reason={appMeta.pendingResetReason}
           onReset={() => void resetToDayOne()}
+          onOverrideSpacing={
+            canOverridePendingResetSpacing
+              ? () => void overridePastDaySpacing(pendingFailedDate!)
+              : undefined
+          }
         />
       )}
 
-      {bothWorkoutsLogged && !workoutsValid && !log.workoutsSpacingOverridden && (
-        <div className="flex flex-col gap-3 rounded-2xl border border-amber-500/20 bg-amber-500/5 p-4 text-sm text-amber-200">
-          <div className="flex gap-2.5 items-start">
-            <AlertTriangle className="shrink-0 text-amber-500 mt-0.5 animate-pulse" size={16} />
-            <div className="flex-1 flex flex-col gap-2">
-              <span className="font-semibold text-amber-400">3-Hour Spacing Conflict</span>
-              <span>Your workouts are logged close together. Did you complete them 3+ hours apart in reality?</span>
-              <button
-                onClick={() => void setChecklistFlag(today, 'workoutsSpacingOverridden', true)}
-                className="self-start px-3 py-1.5 text-xs font-bold rounded-xl bg-amber-500/10 border border-amber-500/20 hover:bg-amber-500/20 hover:border-amber-500/30 text-amber-200 cursor-pointer transition-all duration-200 active:scale-95"
-              >
-                Yes, Spacing Was Met
-              </button>
+      {bothWorkoutsLogged &&
+        workoutsMeetAllExceptSpacing &&
+        !workoutsValidWithoutOverride &&
+        !log.workoutsSpacingOverridden && (
+          <div className="flex flex-col gap-3 rounded-2xl border border-amber-500/20 bg-amber-500/5 p-4 text-sm text-amber-200">
+            <div className="flex gap-2.5 items-start">
+              <AlertTriangle className="shrink-0 text-amber-500 mt-0.5 animate-pulse" size={16} />
+              <div className="flex-1 flex flex-col gap-2">
+                <span className="font-semibold text-amber-400">3-Hour Spacing Conflict</span>
+                <span>Your workouts are logged close together. Did you complete them 3+ hours apart in reality?</span>
+                <button
+                  onClick={() => void setChecklistFlag(today, 'workoutsSpacingOverridden', true)}
+                  className="self-start px-3 py-1.5 text-xs font-bold rounded-xl bg-amber-500/10 border border-amber-500/20 hover:bg-amber-500/20 hover:border-amber-500/30 text-amber-200 cursor-pointer transition-all duration-200 active:scale-95"
+                >
+                  Yes, Spacing Was Met
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
 
       {/* Water Tracker Card */}
       <div className="rounded-3xl border border-white/5 bg-white/[0.03] p-5 flex flex-col gap-4">
