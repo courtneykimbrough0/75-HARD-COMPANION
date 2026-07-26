@@ -33,6 +33,8 @@ export interface WorkoutRecord {
   endTime: number | null // null while the timer is running
   isOutdoor: boolean
   durationSeconds: number
+  /** Planner template this session was started from, when it was pre-filled. */
+  templateId?: string
 }
 
 export interface WaterLog {
@@ -48,32 +50,21 @@ export interface PhotoRecord {
   mimeType: string
 }
 
-export interface WorkoutScheduleDay {
-  dayOfWeek: number // 0 (Sun) - 6 (Sat)
-  workout1Type: string
-  workout1Location: string
-  workout1TargetTime: string // "HH:MM"
-  workout2Type: string
-  workout2Location: string
-  workout2TargetTime: string // "HH:MM"
-}
-
-export interface MealScheduleDay {
-  dayOfWeek: number // 0 (Sun) - 6 (Sat)
-  meal1: string
-  meal2: string
-  meal3: string
-  snacks: string
-}
-
-export interface WeeklyPlan {
-  weekStartDate: DateString
-  weekEndDate: DateString
-  mealPlanText: string
-  scheduledWorkouts: WorkoutScheduleDay[]
-  scheduledMeals?: MealScheduleDay[]
-  updatedAt: number
-}
+/**
+ * Planner entities live in `@/lib/schemas/planner`, where the Zod schema is the
+ * source of truth for both the type and runtime validation. Re-exported here so
+ * the rest of the app keeps importing types from one place.
+ */
+export type {
+  Dish,
+  Exercise,
+  Meal,
+  MealSlot,
+  PlannedDay,
+  WeeklyPlan,
+  WorkoutKind,
+  WorkoutTemplate,
+} from '@/lib/schemas/planner'
 
 export interface AppMeta {
   currentDayCounter: number

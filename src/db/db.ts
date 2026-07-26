@@ -13,6 +13,10 @@ const DEFAULT_APP_META: AppMeta = {
 
 let seedPromise: Promise<void> | null = null
 
+export function resetSeedCacheForTests(): void {
+  seedPromise = null
+}
+
 export function ensureAppMetaSeeded(): Promise<void> {
   if (!seedPromise) {
     seedPromise = db.transaction('rw', db.appMeta, async () => {

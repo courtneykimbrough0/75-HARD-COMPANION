@@ -4,7 +4,6 @@ import Dashboard from '@/routes/Dashboard'
 import History from '@/routes/History'
 import Photo from '@/routes/Photo'
 import Planner from '@/routes/Planner'
-import Water from '@/routes/Water'
 import Workouts from '@/routes/Workouts'
 
 function App() {
@@ -14,7 +13,6 @@ function App() {
         <Route index element={<Navigate to="/dashboard" replace />} />
         <Route path="dashboard" element={<Dashboard />} />
         <Route path="workouts" element={<Workouts />} />
-        <Route path="water" element={<Water />} />
         <Route path="photo" element={<Photo />} />
         <Route path="history" element={<History />} />
         <Route path="planner" element={<Planner />} />
