@@ -1,15 +1,34 @@
-import { Check, ChevronRight, CircleDot } from 'lucide-react'
+import { useState, type ReactNode } from 'react'
+import { Check, ChevronDown, ChevronRight, CircleDot } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { Toggle } from '@/components/ui/Toggle'
 
 interface ChecklistItemProps {
   label: string
   complete: boolean
+  /** Short line under the label describing current state, e.g. "64 / 128 oz". */
+  detail?: string
   onToggle?: (value: boolean) => void
   linkTo?: string
+  /** Revealed in place when the row is expanded. Renders an expand affordance. */
+  expandedContent?: ReactNode
 }
 
-export function ChecklistItem({ label, complete, onToggle, linkTo }: ChecklistItemProps) {
+/**
+ * A single daily rule. The row is both the status readout and the way in:
+ * it either toggles in place, expands to reveal controls, or links to a
+ * dedicated screen — exactly one of those, never several.
+ */
+export function ChecklistItem({
+  label,
+  complete,
+  detail,
+  onToggle,
+  linkTo,
+  expandedContent,
+}: ChecklistItemProps) {
+  const [expanded, setExpanded] = useState(false)
+
   const statusDot = (
     <span
       className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full transition-all duration-300 ${
@@ -22,28 +41,94 @@ export function ChecklistItem({ label, complete, onToggle, linkTo }: ChecklistIt
     </span>
   )
 
-  const containerClasses = `group flex items-center gap-3 rounded-2xl bg-white/[0.03] border border-white/[0.05] hover:border-white/10 hover:bg-white/[0.05] px-4 py-3.5 transition-all duration-300 ${
-    complete ? 'bg-gradient-to-r from-green-500/[0.03] to-transparent border-green-500/10' : ''
+  const body = (
+    <div className="flex min-w-0 flex-1 flex-col">
+      <span
+        className={`truncate text-sm font-semibold transition-colors duration-300 ${
+          complete ? 'text-gray-400' : 'text-gray-200'
+        }`}
+      >
+        {label}
+      </span>
+      {detail && <span className="truncate text-xs font-medium text-gray-500">{detail}</span>}
+    </div>
+  )
+
+  const shellClasses = `rounded-2xl border transition-all duration-300 ${
+    complete
+      ? 'border-green-500/10 bg-gradient-to-r from-green-500/[0.03] to-transparent'
+      : 'border-white/[0.05] bg-white/[0.03]'
   }`
+  const rowClasses = 'group flex w-full items-center gap-3 px-4 py-3.5 text-left'
 
   if (linkTo) {
     return (
-      <Link to={linkTo} className={containerClasses}>
+      <Link to={linkTo} className={`${shellClasses} ${rowClasses} hover:border-white/10 hover:bg-white/[0.05]`}>
         {statusDot}
-        <span className={`flex-1 text-sm font-semibold transition-colors duration-300 ${complete ? 'text-gray-400' : 'text-gray-200'}`}>
-          {label}
-        </span>
-        <ChevronRight size={16} className="text-gray-500 transition-transform duration-300 group-hover:translate-x-1" />
+        {body}
+        <ChevronRight
+          size={16}
+          className="shrink-0 text-gray-500 transition-transform duration-300 group-hover:translate-x-1"
+        />
       </Link>
     )
   }
 
+  const chevron = (
+    <ChevronDown
+      size={16}
+      className={`shrink-0 text-gray-500 transition-transform duration-300 ${
+        expanded ? 'rotate-180' : ''
+      }`}
+    />
+  )
+
+  // A toggle alongside expandable content can't nest inside a row-level button —
+  // that would put a button inside a button — so the chevron gets its own control.
+  if (expandedContent && onToggle) {
+    return (
+      <div className={shellClasses}>
+        <div className={rowClasses}>
+          {statusDot}
+          {body}
+          <Toggle checked={complete} onChange={onToggle} label={label} />
+          <button
+            type="button"
+            onClick={() => setExpanded((v) => !v)}
+            aria-expanded={expanded}
+            aria-label={`${expanded ? 'Hide' : 'Show'} ${label} details`}
+            className="shrink-0 cursor-pointer rounded-lg p-0.5 transition-colors hover:bg-white/10 focus-visible:ring-2 focus-visible:ring-purple-500 focus-visible:outline-none"
+          >
+            {chevron}
+          </button>
+        </div>
+        {expanded && <div className="flex flex-col gap-3 px-4 pb-4">{expandedContent}</div>}
+      </div>
+    )
+  }
+
+  if (expandedContent) {
+    return (
+      <div className={shellClasses}>
+        <button
+          type="button"
+          onClick={() => setExpanded((v) => !v)}
+          aria-expanded={expanded}
+          className={`${rowClasses} cursor-pointer rounded-2xl transition-colors hover:bg-white/[0.02] focus-visible:ring-2 focus-visible:ring-purple-500 focus-visible:outline-none`}
+        >
+          {statusDot}
+          {body}
+          {chevron}
+        </button>
+        {expanded && <div className="flex flex-col gap-3 px-4 pb-4">{expandedContent}</div>}
+      </div>
+    )
+  }
+
   return (
-    <div className={containerClasses}>
+    <div className={`${shellClasses} ${rowClasses}`}>
       {statusDot}
-      <span className={`flex-1 text-sm font-semibold transition-colors duration-300 ${complete ? 'text-gray-400' : 'text-gray-200'}`}>
-        {label}
-      </span>
+      {body}
       {onToggle && <Toggle checked={complete} onChange={onToggle} label={label} />}
     </div>
   )

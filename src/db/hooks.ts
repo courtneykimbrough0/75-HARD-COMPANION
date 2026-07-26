@@ -1,8 +1,19 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useEffect } from 'react'
 import { db, ensureAppMetaSeeded } from '@/db/db'
-import { catchUpEvaluation, ensureWaterRowForToday, getWorkoutsForDate } from '@/db/repository'
-import { todayLocalDateString } from '@/lib/logic/dateUtils'
+import {
+  catchUpEvaluation,
+  ensureWaterRowForToday,
+  getAllMeals,
+  getAllWorkoutTemplates,
+  getPlanForWeek,
+  getWorkoutsForDate,
+} from '@/db/repository'
+import {
+  getWeekStartDate,
+  parseLocalDateString,
+  todayLocalDateString,
+} from '@/lib/logic/dateUtils'
 import type { AppMeta, DateString } from '@/types'
 
 export function useAppMeta(): AppMeta | undefined {
@@ -26,7 +37,30 @@ export function useWorkoutsForDate(date: DateString = todayLocalDateString()) {
 }
 
 export function useWeekPlan(weekStartDate: DateString) {
-  return useLiveQuery(() => db.weeklyPlans.get(weekStartDate), [weekStartDate])
+  return useLiveQuery(() => getPlanForWeek(weekStartDate), [weekStartDate])
+}
+
+export function useAllMeals() {
+  return useLiveQuery(() => getAllMeals(), [])
+}
+
+export function useAllWorkoutTemplates() {
+  return useLiveQuery(() => getAllWorkoutTemplates(), [])
+}
+
+/**
+ * Today's slice of the weekly plan. Days embed their own copy of whatever was
+ * assigned — see `plannedDaySchema` — so this just locates today's entry, no
+ * hydration against the live library needed.
+ */
+export function useTodayPlan(date: DateString = todayLocalDateString()) {
+  return useLiveQuery(async () => {
+    const plan = await getPlanForWeek(getWeekStartDate(date))
+    const dayOfWeek = parseLocalDateString(date).getDay()
+    const day = plan?.days.find((d) => d.dayOfWeek === dayOfWeek)
+    if (!day) return undefined
+    return { day, workout1: day.workout1, workout2: day.workout2, meals: day.meals }
+  }, [date])
 }
 
 export function useAllDailyLogs() {

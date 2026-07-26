@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import 'fake-indexeddb/auto'
 import { db, resetSeedCacheForTests } from './db'
 import {
+  addWaterIncrement,
   catchUpEvaluation,
   deleteWorkoutSession,
   getOrCreateDailyLog,
@@ -149,5 +150,20 @@ describe('repository IndexedDB integration tests', () => {
     records = await getWorkoutsForDate(today)
     expect(records.length).toBe(2)
     expect(records.map((r) => r.sessionNumber)).toEqual([1, 2]) // No duplicate session numbers!
+  })
+
+  it('addWaterIncrement adds and subtracts water volume, clamping at 0', async () => {
+    const today = todayLocalDateString()
+    await addWaterIncrement(today, 24)
+    let waterRow = await db.waterLogs.get(today)
+    expect(waterRow?.volumeOz).toBe(24)
+
+    await addWaterIncrement(today, -8)
+    waterRow = await db.waterLogs.get(today)
+    expect(waterRow?.volumeOz).toBe(16)
+
+    await addWaterIncrement(today, -30)
+    waterRow = await db.waterLogs.get(today)
+    expect(waterRow?.volumeOz).toBe(0)
   })
 })

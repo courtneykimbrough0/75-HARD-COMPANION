@@ -1,12 +1,15 @@
-import { Camera, Calendar, Dumbbell, History, LayoutGrid } from 'lucide-react'
+import { Calendar, History, ListChecks } from 'lucide-react'
 import { NavLink } from 'react-router-dom'
 
+/**
+ * Three destinations, matching the three questions the app answers:
+ * what do I do now, what have I done, what will I do. Everything else
+ * (workouts, camera) is reached by drilling into a rule on Today.
+ */
 const NAV_ITEMS = [
-  { to: '/dashboard', label: 'Today', icon: LayoutGrid },
-  { to: '/workouts', label: 'Workouts', icon: Dumbbell },
-  { to: '/photo', label: 'Photo', icon: Camera },
+  { to: '/dashboard', label: 'Today', icon: ListChecks },
   { to: '/history', label: 'History', icon: History },
-  { to: '/planner', label: 'Planner', icon: Calendar },
+  { to: '/planner', label: 'Plan', icon: Calendar },
 ]
 
 export function BottomNav() {
@@ -21,14 +24,14 @@ export function BottomNav() {
             <NavLink
               to={to}
               className={({ isActive }) =>
-                `flex flex-col items-center gap-1.5 py-1 text-[10px] font-semibold transition-all duration-300 cursor-pointer ${
+                `flex flex-col items-center gap-1.5 py-1.5 text-[10px] font-semibold transition-all duration-300 cursor-pointer ${
                   isActive
                     ? 'text-purple-400 scale-105 drop-shadow-[0_0_8px_rgba(168,85,247,0.4)]'
                     : 'text-gray-500 hover:text-gray-300'
                 }`
               }
             >
-              <Icon size={18} />
+              <Icon size={20} />
               <span>{label}</span>
             </NavLink>
           </li>

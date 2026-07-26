@@ -9,16 +9,28 @@ import {
   quickCompleteWorkoutSession,
 } from '@/db/repository'
 import { WORKOUT_MIN_MINUTES } from '@/lib/logic/constants'
-import type { DateString, WorkoutRecord } from '@/types'
+import { WORKOUT_KIND_LABELS } from '@/lib/schemas/planner'
+import type { DateString, WorkoutRecord, WorkoutTemplate } from '@/types'
 
 interface WorkoutSessionCardProps {
   date: DateString
   label: string
   record?: WorkoutRecord
+  /** Planner template for this slot; pre-fills outdoor and lists the exercises. */
+  planned?: WorkoutTemplate
+  plannedTime?: string
 }
 
-export function WorkoutSessionCard({ date, label, record }: WorkoutSessionCardProps) {
-  const [isOutdoor, setIsOutdoor] = useState(false)
+export function WorkoutSessionCard({
+  date,
+  label,
+  record,
+  planned,
+  plannedTime,
+}: WorkoutSessionCardProps) {
+  const [isOutdoor, setIsOutdoor] = useState(planned?.isOutdoor ?? false)
+  /** Guards the pre-fill below so it applies once per template, not on every render. */
+  const appliedPlanIdRef = useRef<string | undefined>(undefined)
   const [phase, setPhase] = useState<TimerPhase>(
     record ? (record.endTime ? 'stopped' : 'running') : 'idle',
   )
@@ -46,6 +58,19 @@ export function WorkoutSessionCard({ date, label, record }: WorkoutSessionCardPr
     const id = setInterval(() => forceTick((t) => t + 1), 1000)
     return () => clearInterval(id)
   }, [phase])
+
+  /**
+   * Seed the outdoor flag from the planned template. This has to be an effect, not
+   * a useState initializer: the plan arrives asynchronously from useLiveQuery, well
+   * after first render. Applied once per template and only while nothing is logged,
+   * so a manual override afterwards is preserved.
+   */
+  useEffect(() => {
+    if (record || !planned) return
+    if (appliedPlanIdRef.current === planned.id) return
+    appliedPlanIdRef.current = planned.id
+    setIsOutdoor(planned.isOutdoor)
+  }, [planned, record])
 
   if (record?.endTime != null) {
     const met = record.durationSeconds >= WORKOUT_MIN_MINUTES * 60
@@ -88,7 +113,7 @@ export function WorkoutSessionCard({ date, label, record }: WorkoutSessionCardPr
         : 0
 
   const handleStart = async () => {
-    const rec = await startWorkoutSession(date, isOutdoor)
+    const rec = await startWorkoutSession(date, isOutdoor, planned?.id)
     activeIdRef.current = rec.id
     startTimeRef.current = rec.startTime
     pausedMsRef.current = 0
@@ -137,6 +162,34 @@ export function WorkoutSessionCard({ date, label, record }: WorkoutSessionCardPr
     await quickCompleteWorkoutSession(date, isOutdoor)
   }
 
+  const plannedBlock = planned && (
+    <div className="flex flex-col gap-1.5 rounded-xl border border-purple-500/15 bg-purple-500/[0.06] p-3">
+      <div className="flex items-baseline justify-between gap-2">
+        <span className="text-xs font-bold text-purple-200">{planned.name}</span>
+        <span className="text-[11px] font-medium text-purple-300/70">
+          {WORKOUT_KIND_LABELS[planned.kind]}
+          {plannedTime ? ` · ${plannedTime}` : ''}
+        </span>
+      </div>
+      {planned.exercises.length > 0 && (
+        <ul className="flex flex-col gap-0.5">
+          {planned.exercises.map((exercise) => (
+            <li key={exercise.id} className="text-[11px] text-gray-400">
+              {exercise.name}
+              {(exercise.sets || exercise.reps) && (
+                <span className="text-gray-600">
+                  {' · '}
+                  {exercise.sets ? `${exercise.sets}×` : ''}
+                  {exercise.reps ?? ''}
+                </span>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  )
+
   return (
     <div className="flex flex-col gap-4 rounded-2xl bg-gray-900 p-5">
       <div className="flex items-center justify-between">
@@ -157,6 +210,7 @@ export function WorkoutSessionCard({ date, label, record }: WorkoutSessionCardPr
           </button>
         )}
       </div>
+      {plannedBlock}
       <WorkoutTimer
         phase={phase}
         elapsedSeconds={elapsedSeconds}
